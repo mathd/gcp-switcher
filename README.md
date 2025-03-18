@@ -1,79 +1,119 @@
 # GCP Switcher
 
-A terminal user interface (TUI) application for easily managing and switching between Google Cloud Platform accounts and projects.
+A terminal user interface (TUI) for managing Google Cloud Platform accounts and projects.
 
 ## Features
 
-- 🔄 View and switch between multiple GCP accounts
-- 📂 List and switch between GCP projects
-- 🔑 Login to new GCP accounts
-- 🎯 Manually enter project IDs
-- 💻 Interactive terminal interface with keyboard navigation
-- 🎨 Beautiful TUI with color-coded information
+- View and switch between GCP accounts
+- View and switch between GCP projects
+- Login to new GCP accounts
+- Manual project ID entry
+- Debug logging support
+- Interactive UI with keyboard navigation
+- Cross-platform support (Linux, Windows, macOS)
 
 ## Prerequisites
 
-- Go 1.x or higher
+- Go 1.21 or later
 - Google Cloud SDK (gcloud) installed and in PATH
-- Terminal with support for TUI applications
 
 ## Installation
 
-1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/gcp-switcher.git
+git clone https://github.com/mathieudupuis/gcp-switcher.git
 cd gcp-switcher
+make build  # Build for current platform
+# or
+make build-all  # Build for all platforms
 ```
 
-2. Build the application:
-```bash
-go build
-```
+The binaries will be created in the `bin` directory:
+- Linux: `bin/gcp-switcher-linux-amd64`
+- Windows: `bin/gcp-switcher-windows-amd64.exe`
+- macOS Intel: `bin/gcp-switcher-darwin-amd64`
+- macOS ARM: `bin/gcp-switcher-darwin-arm64`
 
 ## Usage
 
 Run the application:
+
 ```bash
-./gcp-switcher
+# On Unix-like systems (Linux/macOS)
+./bin/gcp-switcher
+
+# On Windows
+.\bin\gcp-switcher.exe
 ```
 
 With debug logging enabled:
+
 ```bash
-./gcp-switcher --debug
+# On Unix-like systems (Linux/macOS)
+./bin/gcp-switcher --debug
+
+# On Windows
+.\bin\gcp-switcher.exe --debug
 ```
 
-### Navigation
+### Controls
 
-- Use `↑`/`↓` or `j`/`k` to navigate through menus
-- `Enter` to select an option
-- `q` to quit or go back to the main menu
-- Numbers `1-4` for quick menu selection
+- `↑/↓` or `j/k`: Navigate through options
+- `Enter`: Select option
+- `q`: Quit or go back
+- `Ctrl+C`: Quit application
 
-### Main Menu Options
+## Project Structure
 
-1. View/Switch Accounts - List all configured accounts and switch between them
-2. View/Switch Projects - List all available projects and switch to a different project
-3. Login to a New Account - Add a new GCP account
-4. Enter Project ID Manually - Switch to a project by entering its ID directly
+```
+.
+├── cmd/
+│   └── gcp/       # GCP command execution logic
+├── internal/      # Core application logic
+├── types/         # Data structures and types
+├── ui/           # UI styling and theme
+└── main.go       # Application entry point
+```
 
-## Implementation Details
+## Development
 
-Built using:
-- [Bubble Tea](github.com/charmbracelet/bubbletea) - Terminal UI framework
-- [Lip Gloss](github.com/charmbracelet/lipgloss) - Style definitions
-- Google Cloud SDK - GCP interaction
+### Build Commands
 
-## Debug Mode
+```bash
+# Build for current platform
+make build
 
-When run with the `--debug` flag, the application creates a log file (`gcp-switcher.log`) with detailed operation information, useful for troubleshooting.
+# Build for all platforms
+make build-all
 
-## Error Handling
+# Build for specific platforms
+make build-linux
+make build-windows
+make build-mac
 
-- Automatically checks for Google Cloud SDK installation
-- Handles command timeouts gracefully
-- Provides clear error messages in the UI
-- Fallback timer prevents infinite loading states
+# Run the application
+make run
+
+# Run with debug logging
+make run-debug
+
+# Clean build artifacts
+make clean
+
+# Run tests
+make test
+
+# Format code
+make fmt
+
+# Run linter
+make lint
+```
+
+For more commands, run:
+```bash
+make help
+```
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+See [LICENSE](LICENSE) file.
