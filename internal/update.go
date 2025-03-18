@@ -6,8 +6,8 @@ import (
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/mathieudupuis/gcp-switcher/cmd/gcp"
-	"github.com/mathieudupuis/gcp-switcher/types"
+	"github.com/mathd/gcp-switcher/cmd/gcp"
+	"github.com/mathd/gcp-switcher/types"
 )
 
 // Update handles state updates based on incoming messages

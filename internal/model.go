@@ -7,9 +7,9 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/mathieudupuis/gcp-switcher/cmd/gcp"
-	"github.com/mathieudupuis/gcp-switcher/types"
-	"github.com/mathieudupuis/gcp-switcher/ui"
+	"github.com/mathd/gcp-switcher/cmd/gcp"
+	"github.com/mathd/gcp-switcher/types"
+	"github.com/mathd/gcp-switcher/ui"
 )
 
 const (

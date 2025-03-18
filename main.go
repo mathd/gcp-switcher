@@ -8,8 +8,9 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/mathieudupuis/gcp-switcher/internal"
-	"github.com/mathieudupuis/gcp-switcher/ui"
+	"github.com/mathd/gcp-switcher/internal"
+	"github.com/mathd/gcp-switcher/internal/version"
+	"github.com/mathd/gcp-switcher/ui"
 )
 
 const (
@@ -17,8 +18,9 @@ const (
 )
 
 var (
-	debugMode bool
-	logger    *log.Logger
+	debugMode   bool
+	showVersion bool
+	logger      *log.Logger
 )
 
 // Init logger
@@ -41,7 +43,14 @@ func initLogger() {
 func main() {
 	// Parse command line flags
 	flag.BoolVar(&debugMode, "debug", false, "Enable debug logging")
+	flag.BoolVar(&showVersion, "version", false, "Show version information")
 	flag.Parse()
+
+	// Show version if requested
+	if showVersion {
+		fmt.Println(version.GetVersionInfo())
+		os.Exit(0)
+	}
 
 	// Initialize logger
 	initLogger()
