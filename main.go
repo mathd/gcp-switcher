@@ -19,54 +19,85 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-const listHeight = 14
-const defaultWidth = 80
-const commandTimeout = 5 * time.Second
-const logFilePath = "gcp-switcher.log"
+// Configuration constants
+const (
+	listHeight     = 20
+	defaultWidth   = 80
+	commandTimeout = 5 * time.Second
+	logFilePath    = "gcp-switcher.log"
+	longTimeout    = 30 * time.Second
+)
+
+// UI States
+const (
+	stateLoading         = "loading"
+	stateLoadingAccounts = "loading_accounts"
+	stateLoadingProjects = "loading_projects"
+	stateError           = "error"
+	stateMain            = "main"
+	stateAccounts        = "accounts"
+	stateProjects        = "projects"
+	stateManualProject   = "manual_project"
+	stateConfirming      = "confirming"
+	stateProcessing      = "processing"
+	stateNewLogin        = "new_login"
+)
+
+// Styles defines the UI styling configuration
+type Styles struct {
+	app           lipgloss.Style
+	title         lipgloss.Style
+	subtitle      lipgloss.Style
+	info          lipgloss.Style
+	success       lipgloss.Style
+	error         lipgloss.Style
+	highlight     lipgloss.Style
+	focusedButton lipgloss.Style
+	blurredButton lipgloss.Style
+	activeItem    lipgloss.Style
+}
 
 var (
 	debugMode bool
-	// Initialize logger
-	logger *log.Logger
-
-	appStyle = lipgloss.NewStyle().
-			BorderStyle(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("62")).
-			Padding(1, 2)
-
-	titleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("170")).
-			Bold(true).
-			MarginLeft(2)
-
-	subtitleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("39"))
-
-	infoStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("243"))
-
-	successStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("42"))
-
-	errorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("196"))
-
-	highlightStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("212"))
-
-	focusedButtonStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("205")).
-				Background(lipgloss.Color("57")).
-				Padding(0, 2)
-
-	blurredButtonStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("250")).
-				Padding(0, 2)
-
-	activeItemStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("42")).
-			Bold(true)
+	logger    *log.Logger
+	styles    = NewStyles()
 )
+
+// NewStyles initializes and returns the UI styles
+func NewStyles() Styles {
+	return Styles{
+		app: lipgloss.NewStyle().
+			BorderStyle(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("99")).
+			Padding(1, 2),
+		title: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("213")).
+			Bold(true).
+			MarginLeft(2),
+		subtitle: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("105")),
+		info: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("247")),
+		success: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("84")),
+		error: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("203")),
+		highlight: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("159")).
+			Bold(true),
+		focusedButton: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("231")).
+			Background(lipgloss.Color("99")).
+			Padding(0, 2).
+			Bold(true),
+		blurredButton: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")).
+			Padding(0, 2),
+		activeItem: lipgloss.NewStyle().
+			Foreground(lipgloss.Color("159")).
+			Bold(true),
+	}
+}
 
 // Init logger
 func initLogger() {
@@ -97,26 +128,26 @@ type Project struct {
 	ProjectID string `json:"projectId"`
 }
 
-// item represents an item in the list
-type item struct {
+// Item represents an item in the list
+type Item struct {
 	title       string
 	description string
 	isActive    bool
 	id          string
 }
 
-func (i item) Title() string {
+func (i Item) Title() string {
 	if i.isActive {
-		return activeItemStyle.Render(i.title + " (ACTIVE)")
+		return styles.activeItem.Render(i.title + " (ACTIVE)")
 	}
 	return i.title
 }
 
-func (i item) Description() string { return i.description }
-func (i item) FilterValue() string { return i.title + i.description }
+func (i Item) Description() string { return i.description }
+func (i Item) FilterValue() string { return i.title + i.description }
 
-// model represents the application state
-type model struct {
+// AppModel represents the application state
+type AppModel struct {
 	state              string
 	accounts           []Account
 	projects           []Project
@@ -140,11 +171,11 @@ type model struct {
 	selectedItemID     string // Track selected item ID for confirmation
 }
 
-func initialModel() model {
+func initialModel() AppModel {
 	// Initialize spinner
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("213")) // Match the title color
 
 	// Initialize search input
 	ti := textinput.New()
@@ -166,9 +197,9 @@ func initialModel() model {
 	accountList.SetShowTitle(true)
 	accountList.SetShowStatusBar(true)
 	accountList.SetFilteringEnabled(true)
-	accountList.Styles.Title = titleStyle
-	accountList.Styles.PaginationStyle = subtitleStyle
-	accountList.Styles.HelpStyle = infoStyle
+	accountList.Styles.Title = styles.title
+	accountList.Styles.PaginationStyle = styles.subtitle
+	accountList.Styles.HelpStyle = styles.info
 
 	// Initialize project list
 	projectList := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
@@ -176,12 +207,12 @@ func initialModel() model {
 	projectList.SetShowTitle(true)
 	projectList.SetShowStatusBar(true)
 	projectList.SetFilteringEnabled(true)
-	projectList.Styles.Title = titleStyle
-	projectList.Styles.PaginationStyle = subtitleStyle
-	projectList.Styles.HelpStyle = infoStyle
+	projectList.Styles.Title = styles.title
+	projectList.Styles.PaginationStyle = styles.subtitle
+	projectList.Styles.HelpStyle = styles.info
 
-	return model{
-		state:              "loading",
+	return AppModel{
+		state:              stateLoading,
 		accounts:           []Account{},
 		projects:           []Project{},
 		spinner:            s,
@@ -198,7 +229,7 @@ func initialModel() model {
 	}
 }
 
-func (m model) Init() tea.Cmd {
+func (m AppModel) Init() tea.Cmd {
 	// Load all data at startup but with a reasonable fallback timer
 	return tea.Batch(
 		m.spinner.Tick,
@@ -221,7 +252,7 @@ func createFallbackTimer(seconds int) tea.Cmd {
 	}
 }
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
 
@@ -296,7 +327,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch m.state {
 			case "accounts":
 				if len(m.accounts) > 0 {
-					selectedItem := m.accountList.SelectedItem().(item)
+					selectedItem := m.accountList.SelectedItem().(Item)
 					if selectedItem.id != m.activeAccount {
 						m.previousState = "accounts"       // Save previous state
 						m.selectedItemID = selectedItem.id // Save selected item ID
@@ -307,7 +338,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			case "projects":
 				if len(m.projects) > 0 {
-					selectedItem := m.projectList.SelectedItem().(item)
+					selectedItem := m.projectList.SelectedItem().(Item)
 					if selectedItem.id != m.activeProject {
 						m.previousState = "projects"       // Save previous state
 						m.selectedItemID = selectedItem.id // Save selected item ID
@@ -411,7 +442,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.accounts = msg.accounts
 		accountItems := []list.Item{}
 		for _, account := range m.accounts {
-			accountItems = append(accountItems, item{
+			accountItems = append(accountItems, Item{
 				title:       account.Account,
 				description: "",
 				isActive:    account.Status == "ACTIVE",
@@ -433,7 +464,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.projects = msg.projects
 		projectItems := []list.Item{}
 		for _, project := range m.projects {
-			projectItems = append(projectItems, item{
+			projectItems = append(projectItems, Item{
 				title:       project.ProjectID,
 				description: project.Name,
 				isActive:    project.ProjectID == m.activeProject,
@@ -489,7 +520,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m model) View() string {
+func (m AppModel) View() string {
 	var s string
 
 	switch m.state {
@@ -499,75 +530,75 @@ func (m model) View() string {
 			m.spinner.View(),
 		)
 		// Show loading progress
-		s += infoStyle.Render(fmt.Sprintf("  Commands completed: %d/%d\n", m.commandsComplete, m.totalCommands))
-		return appStyle.Render(s)
+		s += styles.info.Render(fmt.Sprintf("  Commands completed: %d/%d\n", m.commandsComplete, m.totalCommands))
+		return styles.app.Render(s)
 
 	case "loading_accounts":
 		s = fmt.Sprintf(
 			"\n\n   %s Loading Accounts...\n\n",
 			m.spinner.View(),
 		)
-		return appStyle.Render(s)
+		return styles.app.Render(s)
 
 	case "loading_projects":
 		s = fmt.Sprintf(
 			"\n\n   %s Loading Projects...\n\n",
 			m.spinner.View(),
 		)
-		return appStyle.Render(s)
+		return styles.app.Render(s)
 
 	case "error":
-		s = titleStyle.Render("Error") + "\n\n"
-		s += errorStyle.Render(m.err.Error()) + "\n\n"
-		s += infoStyle.Render("Press q to quit")
-		return appStyle.Render(s)
+		s = styles.title.Render("Error") + "\n\n"
+		s += styles.error.Render(m.err.Error()) + "\n\n"
+		s += styles.info.Render("Press q to quit")
+		return styles.app.Render(s)
 
 	case "main":
 		// Header
-		s = titleStyle.Render("GCP Account Manager") + "\n\n"
+		s = styles.title.Render("GCP Account Manager") + "\n\n"
 
 		// Account and project info
-		accountInfo := fmt.Sprintf("Active Account: %s", highlightStyle.Render(m.activeAccount))
-		projectInfo := fmt.Sprintf("Active Project: %s", highlightStyle.Render(m.activeProject))
+		accountInfo := fmt.Sprintf("Active Account: %s", styles.highlight.Render(m.activeAccount))
+		projectInfo := fmt.Sprintf("Active Project: %s", styles.highlight.Render(m.activeProject))
 		s += accountInfo + "\n" + projectInfo + "\n\n"
 
 		// Menu options
-		s += subtitleStyle.Render("What would you like to do?") + "\n\n"
-		s += "1. " + focusedButtonStyle.Render(" View/Switch Accounts ") + "\n"
-		s += "2. " + focusedButtonStyle.Render(" View/Switch Projects ") + "\n"
-		s += "3. " + focusedButtonStyle.Render(" Login to a New Account ") + "\n"
-		s += "4. " + focusedButtonStyle.Render(" Enter Project ID Manually ") + "\n\n"
-		s += infoStyle.Render("Press q to quit")
+		s += styles.subtitle.Render("What would you like to do?") + "\n\n"
+		s += "1. " + styles.focusedButton.Render(" View/Switch Accounts ") + "\n"
+		s += "2. " + styles.focusedButton.Render(" View/Switch Projects ") + "\n"
+		s += "3. " + styles.focusedButton.Render(" Login to a New Account ") + "\n"
+		s += "4. " + styles.focusedButton.Render(" Enter Project ID Manually ") + "\n\n"
+		s += styles.info.Render("Press q to quit")
 
 	case "accounts":
 		s = m.accountList.View()
-		s += "\n" + infoStyle.Render("Press Enter to select, q to go back")
+		s += "\n" + styles.info.Render("Press Enter to select, q to go back")
 
 	case "projects":
 		s = m.projectList.View()
-		s += "\n" + infoStyle.Render("Press Enter to select, q to go back")
+		s += "\n" + styles.info.Render("Press Enter to select, q to go back")
 
 	case "manual_project":
-		s = titleStyle.Render("Enter Project ID") + "\n\n"
+		s = styles.title.Render("Enter Project ID") + "\n\n"
 		s += "Please enter the GCP project ID you want to switch to:\n\n"
 		s += m.projectInput.View() + "\n\n"
-		s += infoStyle.Render("Press Enter to confirm, q to go back")
+		s += styles.info.Render("Press Enter to confirm, q to go back")
 
 	case "confirming":
-		s = titleStyle.Render("Confirmation") + "\n\n"
+		s = styles.title.Render("Confirmation") + "\n\n"
 		s += m.confirmationText + "\n\n"
 
-		yesStyle := blurredButtonStyle
-		noStyle := blurredButtonStyle
+		yesStyle := styles.blurredButton
+		noStyle := styles.blurredButton
 
 		if m.confirmationChoice == 0 {
-			yesStyle = focusedButtonStyle
+			yesStyle = styles.focusedButton
 		} else {
-			noStyle = focusedButtonStyle
+			noStyle = styles.focusedButton
 		}
 
 		s += yesStyle.Render(" Yes ") + "   " + noStyle.Render(" No ")
-		s += "\n\n" + infoStyle.Render("(Use arrow keys to select, Enter to confirm)")
+		s += "\n\n" + styles.info.Render("(Use arrow keys to select, Enter to confirm)")
 
 	case "processing":
 		s = fmt.Sprintf(
@@ -576,23 +607,23 @@ func (m model) View() string {
 		)
 
 	case "new_login":
-		s = titleStyle.Render("Login to a New Account") + "\n\n"
+		s = styles.title.Render("Login to a New Account") + "\n\n"
 		s += m.confirmationText + "\n\n"
 
-		yesStyle := blurredButtonStyle
-		noStyle := blurredButtonStyle
+		yesStyle := styles.blurredButton
+		noStyle := styles.blurredButton
 
 		if m.confirmationChoice == 0 {
-			yesStyle = focusedButtonStyle
+			yesStyle = styles.focusedButton
 		} else {
-			noStyle = focusedButtonStyle
+			noStyle = styles.focusedButton
 		}
 
 		s += yesStyle.Render(" Yes ") + "   " + noStyle.Render(" No ")
-		s += "\n\n" + infoStyle.Render("(Use arrow keys to select, Enter to confirm)")
+		s += "\n\n" + styles.info.Render("(Use arrow keys to select, Enter to confirm)")
 	}
 
-	return appStyle.Render(s)
+	return styles.app.Render(s)
 }
 
 // Custom message types
@@ -611,7 +642,7 @@ type fallbackTimerMsg struct{ timeoutSeconds int }
 
 func (e errMsg) Error() string { return e.err.Error() }
 
-func checkCompletion(m *model) {
+func checkCompletion(m *AppModel) {
 	logger.Printf("Checking completion: %d/%d commands complete", m.commandsComplete, m.totalCommands)
 	if m.commandsComplete >= m.totalCommands {
 		logger.Println("All commands complete! Transitioning to main state")
