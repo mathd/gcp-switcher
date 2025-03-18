@@ -369,13 +369,11 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			case "accounts":
 				if len(m.accounts) > 0 {
 					selectedItem := m.accountList.SelectedItem().(Item)
-					if selectedItem.id != m.activeAccount {
-						m.previousState = "accounts"       // Save previous state
-						m.selectedItemID = selectedItem.id // Save selected item ID
-						m.state = "confirming"
-						m.confirmationText = fmt.Sprintf("Switch to account %s?", selectedItem.id)
-						return m, nil
-					}
+					m.previousState = "accounts"       // Save previous state
+					m.selectedItemID = selectedItem.id // Save selected item ID
+					m.state = "confirming"
+					m.confirmationText = fmt.Sprintf("Switch to account %s?", selectedItem.id)
+					return m, nil
 				}
 			case "projects":
 				if len(m.projects) > 0 {
@@ -514,37 +512,45 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.projectList.SetItems(projectItems)
 
-		// If we're in the loading_projects state, change to projects
-		if m.state == "loading_projects" {
+		if m.activeProject == "" {
+			// If no active project (after account switch), force project selection
+			m.state = "projects"
+		} else if m.state == "loading_projects" {
+			// Normal project list refresh
 			m.state = "projects"
 		}
-
 		m.commandsComplete++
-		checkCompletion(&m)
+		// Only check completion if we have an active project
+		if m.activeProject != "" {
+			checkCompletion(&m)
+		}
 
 	case operationResultMsg:
 		logger.Printf("Operation result: success=%v", msg.success)
 		if msg.success {
-			// Check if we need to force project selection after account switch
-			if msg.err != nil && msg.err.Error() == "SELECT_PROJECT" {
-				// Load projects and transition to project selection
-				if len(m.projects) == 0 {
-					m.state = "loading_projects"
-					return m, getSimpleProjectsCmd()
-				} else {
-					m.state = "projects"
-					return m, nil
-				}
-			}
+			if msg.err != nil && msg.err.Error() == "ACCOUNT_SWITCHED" {
+				// Clear state immediately
+				m.activeProject = ""
+				m.projects = nil
+				m.projectList.SetItems([]list.Item{})
+				m.state = "loading_projects" // Set state to loading projects
 
-			// Refresh the data
-			cmds = append(cmds,
-				getActiveAccountCmd(),
-				getActiveProjectCmd(),
-				getAllAccountsCmd(),
-				getSimpleProjectsCmd(),
-			)
-			m.state = "main"
+				// Load all data and force project selection
+				return m, tea.Batch(
+					getActiveAccountCmd(),
+					getAllAccountsCmd(),
+					getSimpleProjectsCmd(),
+				)
+			} else {
+				// For other successful operations, refresh all data
+				cmds = append(cmds,
+					getActiveAccountCmd(),
+					getActiveProjectCmd(),
+					getAllAccountsCmd(),
+					getSimpleProjectsCmd(),
+				)
+				m.state = "main"
+			}
 		} else {
 			m.state = "error"
 			m.err = msg.err
@@ -858,8 +864,8 @@ func switchAccountCmd(account string) tea.Cmd {
 		}
 
 		logger.Println("Account switch successful")
-		// Return special success message that indicates we need to select a project
-		return operationResultMsg{success: true, err: fmt.Errorf("SELECT_PROJECT")}
+		// Return special success message that indicates we need to refresh account and select project
+		return operationResultMsg{success: true, err: fmt.Errorf("ACCOUNT_SWITCHED")}
 	}
 }
 
