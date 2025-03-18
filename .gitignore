@@ -1,2 +1,12 @@
+# Binary
 gcp-switcher
+
+# Debug log
 gcp-switcher.log
+
+# IDE directories
+.idea/
+.vscode/
+
+# OS files
+.DS_Store
