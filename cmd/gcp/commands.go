@@ -10,7 +10,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/mathieudupuis/gcp-switcher/types"
+	"github.com/mathd/gcp-switcher/types"
 )
 
 const (

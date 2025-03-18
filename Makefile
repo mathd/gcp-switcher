@@ -11,10 +11,15 @@ else
 	BINARY_EXT=
 endif
 
+# Build flags
+BUILD_FLAGS=-ldflags "-X github.com/mathd/gcp-switcher/internal/version.Version=$(VERSION) \
+-X github.com/mathd/gcp-switcher/internal/version.Commit=$(shell git rev-parse --short HEAD) \
+-X github.com/mathd/gcp-switcher/internal/version.Date=$(shell date -u +"%Y-%m-%d_%H:%M:%S")"
+
 build:
 	@echo "Building for current platform..."
 	@mkdir -p bin
-	@go build -o $(BINARY_PATH)$(BINARY_EXT)
+	@go build $(BUILD_FLAGS) -o $(BINARY_PATH)$(BINARY_EXT)
 	@echo "Build complete: $(BINARY_PATH)$(BINARY_EXT)"
 
 # Cross compilation targets
@@ -23,20 +28,20 @@ build-all: build-linux build-windows build-mac
 build-linux:
 	@echo "Building for Linux..."
 	@mkdir -p bin
-	@GOOS=linux GOARCH=amd64 go build -o bin/$(BINARY_NAME)-linux-amd64
+	@GOOS=linux GOARCH=amd64 go build $(BUILD_FLAGS) -o bin/$(BINARY_NAME)-linux-amd64
 	@echo "Linux build complete"
 
 build-windows:
 	@echo "Building for Windows..."
 	@mkdir -p bin
-	@GOOS=windows GOARCH=amd64 go build -o bin/$(BINARY_NAME)-windows-amd64.exe
+	@GOOS=windows GOARCH=amd64 go build $(BUILD_FLAGS) -o bin/$(BINARY_NAME)-windows-amd64.exe
 	@echo "Windows build complete"
 
 build-mac:
 	@echo "Building for macOS..."
 	@mkdir -p bin
-	@GOOS=darwin GOARCH=amd64 go build -o bin/$(BINARY_NAME)-darwin-amd64
-	@GOOS=darwin GOARCH=arm64 go build -o bin/$(BINARY_NAME)-darwin-arm64
+	@GOOS=darwin GOARCH=amd64 go build $(BUILD_FLAGS) -o bin/$(BINARY_NAME)-darwin-amd64
+	@GOOS=darwin GOARCH=arm64 go build $(BUILD_FLAGS) -o bin/$(BINARY_NAME)-darwin-arm64
 	@echo "macOS build complete"
 
 run: build

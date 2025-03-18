@@ -1,4 +1,4 @@
-module github.com/mathieudupuis/gcp-switcher
+module github.com/mathd/gcp-switcher
 
 go 1.21
 

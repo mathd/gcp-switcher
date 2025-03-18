@@ -20,7 +20,7 @@ A terminal user interface (TUI) for managing Google Cloud Platform accounts and 
 ## Installation
 
 ```bash
-git clone https://github.com/mathieudupuis/gcp-switcher.git
+git clone https://github.com/mathd/gcp-switcher.git
 cd gcp-switcher
 make build  # Build for current platform
 # or

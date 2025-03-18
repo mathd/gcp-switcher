@@ -1,0 +1,31 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+          
+      - name: Build for multiple platforms
+        run: |
+          GOOS=linux GOARCH=amd64 go build -o gcp-switcher-linux-amd64
+          GOOS=windows GOARCH=amd64 go build -o gcp-switcher-windows-amd64.exe
+          GOOS=darwin GOARCH=amd64 go build -o gcp-switcher-darwin-amd64
+      
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            gcp-switcher-linux-amd64
+            gcp-switcher-windows-amd64.exe
+            gcp-switcher-darwin-amd64
