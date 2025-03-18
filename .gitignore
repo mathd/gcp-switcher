@@ -1,13 +1,42 @@
-# Binary
+# Binary files
+bin/
 gcp-switcher
 gcp-switcher.exe
+gcp-switcher-*
 
-# Debug log
+# Log files
+*.log
 gcp-switcher.log
 
-# IDE directories
+# Go specific
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+*.prof
+
+# Go workspace file
+go.work
+
+# OS specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE specific
 .idea/
 .vscode/
+*.swp
+*.swo
+*~
 
-# OS files
-.DS_Store
+# Debug files
+debug/
+__debug_bin
