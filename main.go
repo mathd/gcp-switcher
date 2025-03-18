@@ -169,6 +169,7 @@ type AppModel struct {
 	commandErrors      []string
 	previousState      string // Track previous state for confirmation
 	selectedItemID     string // Track selected item ID for confirmation
+	mainMenuChoice     int    // Track main menu selection
 }
 
 func initialModel() AppModel {
@@ -284,8 +285,21 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.state = "main"
 			return m, nil
 
+		case "up", "k":
+			if m.state == "main" {
+				m.mainMenuChoice = (m.mainMenuChoice - 1 + 4) % 4
+				return m, nil
+			}
+
+		case "down", "j":
+			if m.state == "main" {
+				m.mainMenuChoice = (m.mainMenuChoice + 1) % 4
+				return m, nil
+			}
+
 		case "1", "a":
 			if m.state == "main" {
+				m.mainMenuChoice = 0
 				// If we don't have accounts yet, load them now
 				if len(m.accounts) == 0 {
 					m.state = "loading_accounts"
@@ -298,6 +312,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "2", "p":
 			if m.state == "main" {
+				m.mainMenuChoice = 1
 				// If we don't have projects yet, load them now
 				if len(m.projects) == 0 {
 					m.state = "loading_projects"
@@ -310,6 +325,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "3", "l":
 			if m.state == "main" {
+				m.mainMenuChoice = 2
 				m.previousState = "new_login" // Set previous state
 				m.state = "confirming"
 				m.confirmationText = "Would you like to login to a new GCP account?"
@@ -318,6 +334,7 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "4", "m":
 			if m.state == "main" {
+				m.mainMenuChoice = 3
 				m.state = "manual_project"
 				m.projectInput.Focus()
 				return m, nil
@@ -325,6 +342,30 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "enter":
 			switch m.state {
+			case "main":
+				switch m.mainMenuChoice {
+				case 0: // View/Switch Accounts
+					if len(m.accounts) == 0 {
+						m.state = "loading_accounts"
+						return m, getAllAccountsCmd()
+					} else {
+						m.state = "accounts"
+					}
+				case 1: // View/Switch Projects
+					if len(m.projects) == 0 {
+						m.state = "loading_projects"
+						return m, getSimpleProjectsCmd()
+					} else {
+						m.state = "projects"
+					}
+				case 2: // Login to a New Account
+					m.previousState = "new_login"
+					m.state = "confirming"
+					m.confirmationText = "Would you like to login to a new GCP account?"
+				case 3: // Enter Project ID Manually
+					m.state = "manual_project"
+					m.projectInput.Focus()
+				}
 			case "accounts":
 				if len(m.accounts) > 0 {
 					selectedItem := m.accountList.SelectedItem().(Item)
@@ -484,6 +525,18 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case operationResultMsg:
 		logger.Printf("Operation result: success=%v", msg.success)
 		if msg.success {
+			// Check if we need to force project selection after account switch
+			if msg.err != nil && msg.err.Error() == "SELECT_PROJECT" {
+				// Load projects and transition to project selection
+				if len(m.projects) == 0 {
+					m.state = "loading_projects"
+					return m, getSimpleProjectsCmd()
+				} else {
+					m.state = "projects"
+					return m, nil
+				}
+			}
+
 			// Refresh the data
 			cmds = append(cmds,
 				getActiveAccountCmd(),
@@ -564,11 +617,20 @@ func (m AppModel) View() string {
 
 		// Menu options
 		s += styles.subtitle.Render("What would you like to do?") + "\n\n"
-		s += "1. " + styles.focusedButton.Render(" View/Switch Accounts ") + "\n"
-		s += "2. " + styles.focusedButton.Render(" View/Switch Projects ") + "\n"
-		s += "3. " + styles.focusedButton.Render(" Login to a New Account ") + "\n"
-		s += "4. " + styles.focusedButton.Render(" Enter Project ID Manually ") + "\n\n"
-		s += styles.info.Render("Press q to quit")
+		menuItems := []string{
+			" View/Switch Accounts ",
+			" View/Switch Projects ",
+			" Login to a New Account ",
+			" Enter Project ID Manually ",
+		}
+		for i, item := range menuItems {
+			buttonStyle := styles.blurredButton
+			if i == m.mainMenuChoice {
+				buttonStyle = styles.focusedButton
+			}
+			s += fmt.Sprintf("%d. %s\n", i+1, buttonStyle.Render(item))
+		}
+		s += "\n" + styles.info.Render("Press q to quit, ↑/↓ to navigate, Enter to select")
 
 	case "accounts":
 		s = m.accountList.View()
@@ -796,7 +858,8 @@ func switchAccountCmd(account string) tea.Cmd {
 		}
 
 		logger.Println("Account switch successful")
-		return operationResultMsg{success: true}
+		// Return special success message that indicates we need to select a project
+		return operationResultMsg{success: true, err: fmt.Errorf("SELECT_PROJECT")}
 	}
 }
 
