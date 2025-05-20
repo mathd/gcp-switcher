@@ -22,9 +22,9 @@ A terminal user interface (TUI) for managing Google Cloud Platform accounts and 
 ```bash
 git clone https://github.com/mathd/gcp-switcher.git
 cd gcp-switcher
-make build  # Build for current platform
+make build
 # or
-make build-all  # Build for all platforms
+make build-all
 ```
 
 The binaries will be created in the `bin` directory:
@@ -66,12 +66,16 @@ With debug logging enabled:
 
 ```
 .
-├── cmd/
-│   └── gcp/       # GCP command execution logic
-├── internal/      # Core application logic
-├── types/         # Data structures and types
-├── ui/           # UI styling and theme
-└── main.go       # Application entry point
+├── .github/  # GitHub Actions workflow files (e.g., for CI/CD)
+├── cmd/  # GCP command execution logic
+│   └── gcp/  # GCP command execution logic
+├── internal/  # Core application logic
+│   └── version/  # Handles application version information
+├── types/  # Data structures and types
+├── ui/  # UI styling and theme
+├── go.mod  # Defines the module's properties, including its dependencies
+├── go.sum  # Contains the checksums of direct and indirect dependencies
+└── main.go  # Application entry point
 ```
 
 ## Development
@@ -79,33 +83,16 @@ With debug logging enabled:
 ### Build Commands
 
 ```bash
-# Build for current platform
 make build
-
-# Build for all platforms
 make build-all
-
-# Build for specific platforms
 make build-linux
 make build-windows
 make build-mac
-
-# Run the application
 make run
-
-# Run with debug logging
 make run-debug
-
-# Clean build artifacts
 make clean
-
-# Run tests
 make test
-
-# Format code
 make fmt
-
-# Run linter
 make lint
 ```
 
