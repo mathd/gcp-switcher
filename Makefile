@@ -2,7 +2,7 @@
 
 BINARY_NAME=gcp-switcher
 BINARY_PATH=bin/$(BINARY_NAME)
-VERSION=1.0.0
+VERSION=1.1.0
 
 # Platform specific extensions and names
 ifeq ($(OS),Windows_NT)
