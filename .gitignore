@@ -40,3 +40,6 @@ Thumbs.db
 # Debug files
 debug/
 __debug_bin
+
+architecture-review.md
+CODE_REVIEW.md
