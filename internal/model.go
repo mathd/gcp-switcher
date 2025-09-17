@@ -16,46 +16,46 @@ const (
 	listHeight = 20
 )
 
-// UI States
+// Loading contexts for StateLoading
+type LoadingContext int
+
 const (
-	StateLoading         = "loading"
-	StateLoadingAccounts = "loading_accounts"
-	StateLoadingProjects = "loading_projects"
-	StateError           = "error"
-	StateMain            = "main"
-	StateAccounts        = "accounts"
-	StateProjects        = "projects"
-	StateManualProject   = "manual_project"
-	StateConfirming      = "confirming"
-	StateProcessing      = "processing"
-	StateNewLogin        = "new_login"
+	LoadingInitial LoadingContext = iota
+	LoadingAccounts
+	LoadingProjects
 )
 
 // AppModel represents the application state
 type AppModel struct {
-	State              string
-	Accounts           []types.Account
-	Projects           []types.Project
-	ActiveAccount      string
-	ActiveProject      string
-	AccountList        list.Model
-	ProjectList        list.Model
-	Spinner            spinner.Model
+	// State machine for formal state management
+	StateMachine *AppStateMachine
+
+	// Data
+	Accounts      []types.Account
+	Projects      []types.Project
+	ActiveAccount string
+	ActiveProject string
+
+	// UI Components
+	AccountList  list.Model
+	ProjectList  list.Model
+	Spinner      spinner.Model
+	SearchInput  textinput.Model
+	ProjectInput textinput.Model
+
+	// UI State
 	Width              int
 	Height             int
 	Loaded             bool
 	Err                error
-	SearchInput        textinput.Model
-	ProjectInput       textinput.Model
 	ConfirmationChoice int
-	ConfirmationText   string
-	CommandsComplete   int
-	TotalCommands      int
-	CommandErrors      []string
-	PreviousState      string
-	SelectedItemID     string
 	MainMenuChoice     int
 	Styles             ui.Styles
+
+	// Legacy fields for compatibility during transition
+	CommandsComplete int
+	TotalCommands    int
+	CommandErrors    []string
 }
 
 // Init initializes the application model
@@ -112,8 +112,11 @@ func InitialModel(styles ui.Styles) AppModel {
 	projectList.Styles.PaginationStyle = styles.Subtitle
 	projectList.Styles.HelpStyle = styles.Info
 
+	// Initialize state machine
+	stateMachine := NewAppStateMachine()
+
 	return AppModel{
-		State:              StateLoading,
+		StateMachine:       stateMachine,
 		Accounts:           []types.Account{},
 		Projects:           []types.Project{},
 		Spinner:            s,
@@ -125,8 +128,6 @@ func InitialModel(styles ui.Styles) AppModel {
 		CommandsComplete:   0,
 		TotalCommands:      4,
 		CommandErrors:      []string{},
-		PreviousState:      "",
-		SelectedItemID:     "",
 		Styles:             styles,
 	}
 }
@@ -135,7 +136,7 @@ func InitialModel(styles ui.Styles) AppModel {
 func CheckCompletion(m *AppModel) {
 	if m.CommandsComplete >= m.TotalCommands {
 		m.Loaded = true
-		m.State = StateMain
+		m.StateMachine.Fire(TriggerDataLoaded)
 	}
 }
 
