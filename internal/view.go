@@ -8,25 +8,34 @@ import (
 func (m AppModel) View() string {
 	var s string
 
-	switch m.State {
+	currentState := m.StateMachine.GetState()
+	stateContext := m.StateMachine.GetContext()
+
+	switch currentState {
 	case StateLoading:
-		s = fmt.Sprintf(
-			"\n\n   %s Loading GCP configuration...\n\n",
-			m.Spinner.View(),
-		)
-		s += m.Styles.Info.Render(fmt.Sprintf("  Commands completed: %d/%d\n", m.CommandsComplete, m.TotalCommands))
+		var loadingText string
+		switch stateContext.LoadingContext {
+		case LoadingInitial:
+			loadingText = "Loading GCP configuration..."
+			s = fmt.Sprintf(
+				"\n\n   %s %s\n\n",
+				m.Spinner.View(),
+				loadingText,
+			)
+			s += m.Styles.Info.Render(fmt.Sprintf("  Commands completed: %d/%d\n", m.CommandsComplete, m.TotalCommands))
+		case LoadingAccounts:
+			loadingText = "Loading Accounts..."
+		case LoadingProjects:
+			loadingText = "Loading Projects..."
+		}
 
-	case StateLoadingAccounts:
-		s = fmt.Sprintf(
-			"\n\n   %s Loading Accounts...\n\n",
-			m.Spinner.View(),
-		)
-
-	case StateLoadingProjects:
-		s = fmt.Sprintf(
-			"\n\n   %s Loading Projects...\n\n",
-			m.Spinner.View(),
-		)
+		if stateContext.LoadingContext != LoadingInitial {
+			s = fmt.Sprintf(
+				"\n\n   %s %s\n\n",
+				m.Spinner.View(),
+				loadingText,
+			)
+		}
 
 	case StateError:
 		s = m.Styles.Title.Render("Error") + "\n\n"
@@ -74,7 +83,7 @@ func (m AppModel) View() string {
 
 	case StateConfirming:
 		s = m.Styles.Title.Render("Confirmation") + "\n\n"
-		s += m.ConfirmationText + "\n\n"
+		s += m.StateMachine.GetConfirmationText() + "\n\n"
 
 		yesStyle := m.Styles.BlurredButton
 		noStyle := m.Styles.BlurredButton
