@@ -19,13 +19,13 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	currentState := m.StateMachine.GetState()
 	switch currentState {
 	case StateAccounts:
-		m.AccountList, cmd = m.AccountList.Update(msg)
+		m.Components.AccountList, cmd = m.Components.AccountList.Update(msg)
 		cmds = append(cmds, cmd)
 	case StateProjects:
-		m.ProjectList, cmd = m.ProjectList.Update(msg)
+		m.Components.ProjectList, cmd = m.Components.ProjectList.Update(msg)
 		cmds = append(cmds, cmd)
 	case StateManualProject:
-		m.ProjectInput, cmd = m.ProjectInput.Update(msg)
+		m.Components.ProjectInput, cmd = m.Components.ProjectInput.Update(msg)
 		cmds = append(cmds, cmd)
 	}
 
@@ -43,72 +43,84 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m = newModel.(AppModel)
 
 	case tea.WindowSizeMsg:
-		m.Width = msg.Width
-		m.Height = msg.Height
-		m.AccountList.SetSize(msg.Width-4, listHeight)
-		m.ProjectList.SetSize(msg.Width-4, listHeight)
+		m.UI.Width = msg.Width
+		m.UI.Height = msg.Height
+		m.Components.AccountList.SetSize(msg.Width-4, listHeight)
+		m.Components.ProjectList.SetSize(msg.Width-4, listHeight)
 
 	case types.ErrMsg:
-		m.CommandErrors = append(m.CommandErrors, msg.Err.Error())
-		m.CommandsComplete++
-		if m.CommandsComplete >= m.TotalCommands {
+		m.Operations.CommandErrors = append(m.Operations.CommandErrors, msg.Err.Error())
+		m.Operations.CommandsComplete++
+		if m.Operations.CommandsComplete >= m.Operations.TotalCommands {
 			m.StateMachine.Fire(TriggerDataLoaded)
 		}
 
 	case spinner.TickMsg:
-		m.Spinner, cmd = m.Spinner.Update(msg)
+		m.Components.Spinner, cmd = m.Components.Spinner.Update(msg)
 		cmds = append(cmds, cmd)
 
 	case types.GcloudCheckMsg:
 		if !msg.Available {
-			m.Err = fmt.Errorf("Google Cloud SDK (gcloud) is not installed or not in PATH\nPlease install it from: https://cloud.google.com/sdk/docs/install")
-			m.StateMachine.Fire(TriggerError, m.Err)
+			m.UI.Err = fmt.Errorf("Google Cloud SDK (gcloud) is not installed or not in PATH\nPlease install it from: https://cloud.google.com/sdk/docs/install")
+			m.StateMachine.Fire(TriggerError, m.UI.Err)
 		} else {
-			m.CommandsComplete++
+			m.Operations.CommandsComplete++
 			CheckCompletion(&m)
 		}
 
 	case types.ActiveAccountMsg:
-		m.ActiveAccount = msg.Account
-		m.CommandsComplete++
+		m.Data.ActiveAccount = msg.Account
+		m.Operations.CommandsComplete++
 		CheckCompletion(&m)
 
 	case types.ActiveProjectMsg:
-		m.ActiveProject = msg.Project
-		m.CommandsComplete++
+		m.Data.ActiveProject = msg.Project
+		m.Operations.CommandsComplete++
 		CheckCompletion(&m)
 
 	case types.AccountListMsg:
-		m.Accounts = msg.Accounts
-		m.StateMachine.SetHasAccounts(len(m.Accounts) > 0)
+		m.Data.Accounts = msg.Accounts
+		m.StateMachine.SetHasAccounts(len(m.Data.Accounts) > 0)
 		m.updateAccountList()
 		if currentState == StateLoading && m.StateMachine.GetContext().LoadingContext == LoadingAccounts {
 			m.StateMachine.Fire(TriggerDataLoaded)
 		}
-		m.CommandsComplete++
+		m.Operations.CommandsComplete++
 		CheckCompletion(&m)
 
 	case types.ProjectListMsg:
-		m.Projects = msg.Projects
-		m.StateMachine.SetHasProjects(len(m.Projects) > 0)
+		m.Data.Projects = msg.Projects
+		m.StateMachine.SetHasProjects(len(m.Data.Projects) > 0)
 		m.updateProjectList()
 		if currentState == StateLoading && m.StateMachine.GetContext().LoadingContext == LoadingProjects {
 			m.StateMachine.Fire(TriggerDataLoaded)
 		}
-		m.CommandsComplete++
-		if m.ActiveProject != "" {
+		m.Operations.CommandsComplete++
+
+		// If we need to show project selection after account switch
+		if m.UI.NeedProjectSelection && len(m.Data.Projects) > 0 && currentState == StateMain {
+			m.UI.NeedProjectSelection = false // Clear the flag
+			m.StateMachine.SetMenuChoice(1) // Projects menu choice
+			m.StateMachine.Fire(TriggerMenuChoice)
+		} else if m.Data.ActiveProject != "" {
 			CheckCompletion(&m)
 		}
 
 	case types.OperationResultMsg:
 		if msg.Success {
-			if msg.Err != nil && msg.Err.Error() == "ACCOUNT_SWITCHED" {
-				m.ActiveProject = ""
-				m.Projects = nil
-				m.ProjectList.SetItems([]list.Item{})
-				m.StateMachine.Fire(TriggerLoadProjects, LoadingProjects)
-				cmd = m.StateMachine.GetLoadCommand()
-				cmds = append(cmds, cmd)
+			if msg.Message == "ACCOUNT_SWITCHED" {
+				m.Data.ActiveProject = ""
+				m.Data.Projects = nil
+				m.Components.ProjectList.SetItems([]list.Item{})
+				m.StateMachine.SetSelectedID("") // Clear selected ID after account switch
+				m.StateMachine.SetHasProjects(false) // Mark projects as needing reload
+				m.UI.NeedProjectSelection = true // Flag to show project selection
+				m.StateMachine.Fire(TriggerOperationComplete) // Return to main first
+				cmds = append(cmds, tea.Batch(
+					gcp.GetActiveAccount(),
+					// Don't get active project - we want to force project selection
+					gcp.GetSimpleProjects(),
+				))
 			} else {
 				m.StateMachine.Fire(TriggerOperationComplete)
 				cmds = append(cmds, tea.Batch(
@@ -119,13 +131,13 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				))
 			}
 		} else {
-			m.Err = msg.Err
+			m.UI.Err = msg.Err
 			m.StateMachine.Fire(TriggerOperationFailed, msg.Err)
 		}
 	}
 
-	if !m.Loaded {
-		cmds = append(cmds, m.Spinner.Tick)
+	if !m.UI.Loaded {
+		cmds = append(cmds, m.Components.Spinner.Tick)
 	}
 
 	return m, tea.Batch(cmds...)
@@ -133,8 +145,8 @@ func (m AppModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // updateAccountList updates the account list items
 func (m *AppModel) updateAccountList() {
-	accountItems := make([]list.Item, len(m.Accounts))
-	for i, account := range m.Accounts {
+	accountItems := make([]list.Item, len(m.Data.Accounts))
+	for i, account := range m.Data.Accounts {
 		accountItems[i] = types.NewItem(
 			account.Account,
 			"",
@@ -142,28 +154,28 @@ func (m *AppModel) updateAccountList() {
 			account.Account,
 		)
 	}
-	m.AccountList.SetItems(accountItems)
+	m.Components.AccountList.SetItems(accountItems)
 }
 
 // updateProjectList updates the project list items
 func (m *AppModel) updateProjectList() {
-	projectItems := make([]list.Item, len(m.Projects))
-	for i, project := range m.Projects {
+	projectItems := make([]list.Item, len(m.Data.Projects))
+	for i, project := range m.Data.Projects {
 		projectItems[i] = types.NewItem(
 			project.ProjectID,
 			project.Name,
-			project.ProjectID == m.ActiveProject,
+			project.ProjectID == m.Data.ActiveProject,
 			project.ProjectID,
 		)
 	}
-	m.ProjectList.SetItems(projectItems)
+	m.Components.ProjectList.SetItems(projectItems)
 }
 
 // handleFallbackTimer handles fallback timer messages
 func (m AppModel) handleFallbackTimer(msg types.FallbackTimerMsg) (tea.Model, tea.Cmd) {
 	if m.StateMachine.GetState() == StateLoading {
 		m.StateMachine.Fire(TriggerDataLoaded)
-		m.Loaded = true
+		m.UI.Loaded = true
 	}
 	return m, nil
 }
@@ -181,21 +193,21 @@ func (m AppModel) handleKeyMsg(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "up", "k":
 		if currentState == StateMain {
-			m.MainMenuChoice = (m.MainMenuChoice - 1 + 4) % 4
+			m.UI.MainMenuChoice = (m.UI.MainMenuChoice - 1 + 4) % 4
 		} else if currentState == StateConfirming {
-			m.ConfirmationChoice = 0
+			m.UI.ConfirmationChoice = 0
 		}
 
 	case "down", "j":
 		if currentState == StateMain {
-			m.MainMenuChoice = (m.MainMenuChoice + 1) % 4
+			m.UI.MainMenuChoice = (m.UI.MainMenuChoice + 1) % 4
 		} else if currentState == StateConfirming {
-			m.ConfirmationChoice = 1
+			m.UI.ConfirmationChoice = 1
 		}
 
 	case "left", "right":
 		if currentState == StateConfirming {
-			m.ConfirmationChoice = 1 - m.ConfirmationChoice
+			m.UI.ConfirmationChoice = 1 - m.UI.ConfirmationChoice
 		}
 
 	case "1", "a":
@@ -227,33 +239,33 @@ func (m AppModel) handleEnterKey() (tea.Model, tea.Cmd) {
 
 	switch currentState {
 	case StateMain:
-		return m.handleMenuChoice(m.MainMenuChoice)
+		return m.handleMenuChoice(m.UI.MainMenuChoice)
 
 	case StateAccounts:
-		if len(m.Accounts) > 0 {
-			selectedItem := m.AccountList.SelectedItem().(types.Item)
+		if len(m.Data.Accounts) > 0 {
+			selectedItem := m.Components.AccountList.SelectedItem().(types.Item)
 			m.StateMachine.SetSelectedID(selectedItem.ID())
 			m.StateMachine.Fire(TriggerAccountSelected, fmt.Sprintf("Switch to account %s?", selectedItem.ID()))
 		}
 
 	case StateProjects:
-		if len(m.Projects) > 0 {
-			selectedItem := m.ProjectList.SelectedItem().(types.Item)
-			if selectedItem.ID() != m.ActiveProject {
+		if len(m.Data.Projects) > 0 {
+			selectedItem := m.Components.ProjectList.SelectedItem().(types.Item)
+			if selectedItem.ID() != m.Data.ActiveProject {
 				m.StateMachine.SetSelectedID(selectedItem.ID())
 				m.StateMachine.Fire(TriggerProjectSelected, fmt.Sprintf("Switch to project %s?", selectedItem.ID()))
 			}
 		}
 
 	case StateManualProject:
-		projectID := m.ProjectInput.Value()
-		if projectID != "" && projectID != m.ActiveProject {
+		projectID := m.Components.ProjectInput.Value()
+		if projectID != "" && projectID != m.Data.ActiveProject {
 			m.StateMachine.SetSelectedID(projectID)
 			m.StateMachine.Fire(TriggerManualProjectEntry, fmt.Sprintf("Switch to project %s?", projectID))
 		}
 
 	case StateConfirming:
-		if m.ConfirmationChoice == 0 { // Yes
+		if m.UI.ConfirmationChoice == 0 { // Yes
 			m.StateMachine.Fire(TriggerConfirmYes)
 			return m, m.StateMachine.GetActionCommand()
 		} else {
@@ -271,7 +283,7 @@ func (m AppModel) handleMenuChoice(choice int) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	m.MainMenuChoice = choice
+	m.UI.MainMenuChoice = choice
 	m.StateMachine.SetMenuChoice(choice)
 
 	var cmd tea.Cmd
@@ -294,7 +306,7 @@ func (m AppModel) handleMenuChoice(choice int) (tea.Model, tea.Cmd) {
 		m.StateMachine.Fire(TriggerMenuChoice, "Would you like to login to a new GCP account?")
 	case 3: // Manual Project
 		m.StateMachine.Fire(TriggerMenuChoice)
-		m.ProjectInput.Focus()
+		m.Components.ProjectInput.Focus()
 	}
 	return m, cmd
 }

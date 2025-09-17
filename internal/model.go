@@ -25,25 +25,25 @@ const (
 	LoadingProjects
 )
 
-// AppModel represents the application state
-type AppModel struct {
-	// State machine for formal state management
-	StateMachine *AppStateMachine
-
-	// Data
+// AppData holds application data state
+type AppData struct {
 	Accounts      []types.Account
 	Projects      []types.Project
 	ActiveAccount string
 	ActiveProject string
+}
 
-	// UI Components
+// UIComponents holds all UI component state
+type UIComponents struct {
 	AccountList  list.Model
 	ProjectList  list.Model
 	Spinner      spinner.Model
 	SearchInput  textinput.Model
 	ProjectInput textinput.Model
+}
 
-	// UI State
+// UIState holds UI-specific state
+type UIState struct {
 	Width              int
 	Height             int
 	Loaded             bool
@@ -51,17 +51,32 @@ type AppModel struct {
 	ConfirmationChoice int
 	MainMenuChoice     int
 	Styles             ui.Styles
+	NeedProjectSelection bool // Flag to trigger project selection after account switch
+}
 
-	// Legacy fields for compatibility during transition
+// OperationState holds operation tracking state
+type OperationState struct {
 	CommandsComplete int
 	TotalCommands    int
 	CommandErrors    []string
 }
 
+// AppModel represents the application state
+type AppModel struct {
+	// State machine for formal state management
+	StateMachine *AppStateMachine
+
+	// Grouped state components
+	Data       AppData
+	Components UIComponents
+	UI         UIState
+	Operations OperationState
+}
+
 // Init initializes the application model
 func (m AppModel) Init() tea.Cmd {
 	return tea.Batch(
-		m.Spinner.Tick,
+		m.Components.Spinner.Tick,
 		gcp.CheckGcloud,
 		gcp.GetActiveAccount(),
 		gcp.GetActiveProject(),
@@ -116,26 +131,36 @@ func InitialModel(styles ui.Styles) AppModel {
 	stateMachine := NewAppStateMachine()
 
 	return AppModel{
-		StateMachine:       stateMachine,
-		Accounts:           []types.Account{},
-		Projects:           []types.Project{},
-		Spinner:            s,
-		SearchInput:        ti,
-		ProjectInput:       pi,
-		AccountList:        accountList,
-		ProjectList:        projectList,
-		ConfirmationChoice: 0,
-		CommandsComplete:   0,
-		TotalCommands:      4,
-		CommandErrors:      []string{},
-		Styles:             styles,
+		StateMachine: stateMachine,
+		Data: AppData{
+			Accounts:      []types.Account{},
+			Projects:      []types.Project{},
+			ActiveAccount: "",
+			ActiveProject: "",
+		},
+		Components: UIComponents{
+			Spinner:      s,
+			SearchInput:  ti,
+			ProjectInput: pi,
+			AccountList:  accountList,
+			ProjectList:  projectList,
+		},
+		UI: UIState{
+			ConfirmationChoice: 0,
+			Styles:             styles,
+		},
+		Operations: OperationState{
+			CommandsComplete: 0,
+			TotalCommands:    4,
+			CommandErrors:    []string{},
+		},
 	}
 }
 
 // CheckCompletion checks if all commands are complete and updates the state
 func CheckCompletion(m *AppModel) {
-	if m.CommandsComplete >= m.TotalCommands {
-		m.Loaded = true
+	if m.Operations.CommandsComplete >= m.Operations.TotalCommands {
+		m.UI.Loaded = true
 		m.StateMachine.Fire(TriggerDataLoaded)
 	}
 }
