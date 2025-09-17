@@ -56,6 +56,7 @@ type ProjectListMsg struct{ Projects []Project }
 type OperationResultMsg struct {
 	Success bool
 	Err     error
+	Message string
 }
 type FallbackTimerMsg struct{ TimeoutSeconds int }
 

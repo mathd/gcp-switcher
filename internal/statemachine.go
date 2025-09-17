@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/mathd/gcp-switcher/cmd/gcp"
@@ -221,8 +222,7 @@ func (sm *AppStateMachine) GetActionCommand() tea.Cmd {
 		}
 
 		// For account switch (we know this if SelectedID looks like an email)
-		if len(sm.context.SelectedID) > 0 && (sm.context.SelectedID[len(sm.context.SelectedID)-4:] == ".com" ||
-			sm.context.SelectedID[len(sm.context.SelectedID)-4:] == ".org") {
+		if len(sm.context.SelectedID) > 0 && strings.Contains(sm.context.SelectedID, "@") {
 			return gcp.SwitchAccount(sm.context.SelectedID)
 		}
 

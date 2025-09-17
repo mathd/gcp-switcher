@@ -102,14 +102,14 @@ func GetSimpleProjects() tea.Cmd {
 
 		if err != nil {
 			if ctx.Err() == context.DeadlineExceeded {
-				return types.ProjectListMsg{Projects: []types.Project{}}
+				return types.ErrMsg{Err: fmt.Errorf("command timed out: gcloud projects list")}
 			}
-			return types.ProjectListMsg{Projects: []types.Project{}}
+			return types.ErrMsg{Err: err}
 		}
 
 		var projects []types.Project
 		if err := json.Unmarshal(output, &projects); err != nil {
-			return types.ProjectListMsg{Projects: []types.Project{}}
+			return types.ErrMsg{Err: fmt.Errorf("failed to parse projects JSON: %w", err)}
 		}
 
 		return types.ProjectListMsg{Projects: projects}
@@ -122,17 +122,34 @@ func SwitchAccount(account string) tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), longTimeout)
 		defer cancel()
 
-		cmd := exec.CommandContext(ctx, "gcloud", "config", "set", "account", account)
-		cmd.Stdin = os.Stdin
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		err := cmd.Run()
+		// First, verify the account exists in the authenticated accounts list
+		checkCmd := exec.CommandContext(ctx, "gcloud", "auth", "list", "--filter=account:"+account, "--format=value(account)")
+		checkOutput, checkErr := checkCmd.CombinedOutput()
 
-		if err != nil {
-			return types.OperationResultMsg{Success: false, Err: err}
+		if checkErr != nil || strings.TrimSpace(string(checkOutput)) == "" {
+			return types.OperationResultMsg{
+				Success: false,
+				Err: fmt.Errorf("account %s is not authenticated\n\nPlease run 'gcloud auth login %s' to authenticate this account first.", account, account),
+			}
 		}
 
-		return types.OperationResultMsg{Success: true, Err: fmt.Errorf("ACCOUNT_SWITCHED")}
+		cmd := exec.CommandContext(ctx, "gcloud", "config", "set", "account", account)
+		output, err := cmd.CombinedOutput()
+
+		if err != nil {
+			if ctx.Err() == context.DeadlineExceeded {
+				return types.OperationResultMsg{Success: false, Err: fmt.Errorf("command timed out: gcloud config set account %s", account)}
+			}
+
+			// Include the actual command output in the error message
+			errorOutput := strings.TrimSpace(string(output))
+			if errorOutput != "" {
+				return types.OperationResultMsg{Success: false, Err: fmt.Errorf("failed to switch to account %s:\n%s\n\nPlease ensure the account is authenticated. Run 'gcloud auth login %s' if needed.", account, errorOutput, account)}
+			}
+			return types.OperationResultMsg{Success: false, Err: fmt.Errorf("failed to switch to account %s: %v\n\nPlease ensure the account is authenticated. Run 'gcloud auth login %s' if needed.", account, err, account)}
+		}
+
+		return types.OperationResultMsg{Success: true, Message: "ACCOUNT_SWITCHED"}
 	}
 }
 
@@ -148,6 +165,9 @@ func LoginNewAccount() tea.Cmd {
 		loginCmd.Stderr = os.Stderr
 		err := loginCmd.Run()
 		if err != nil {
+			if ctx.Err() == context.DeadlineExceeded {
+				return types.OperationResultMsg{Success: false, Err: fmt.Errorf("command timed out: gcloud auth login")}
+			}
 			return types.OperationResultMsg{Success: false, Err: err}
 		}
 
@@ -157,6 +177,9 @@ func LoginNewAccount() tea.Cmd {
 		adcCmd.Stderr = os.Stderr
 		err = adcCmd.Run()
 		if err != nil {
+			if ctx.Err() == context.DeadlineExceeded {
+				return types.OperationResultMsg{Success: false, Err: fmt.Errorf("command timed out: gcloud auth application-default login")}
+			}
 			return types.OperationResultMsg{Success: false, Err: err}
 		}
 
@@ -171,10 +194,19 @@ func SwitchProject(projectID string) tea.Cmd {
 		defer cancel()
 
 		cmd := exec.CommandContext(ctx, "gcloud", "config", "set", "project", projectID)
-		err := cmd.Run()
+		output, err := cmd.CombinedOutput()
 
 		if err != nil {
-			return types.OperationResultMsg{Success: false, Err: err}
+			if ctx.Err() == context.DeadlineExceeded {
+				return types.OperationResultMsg{Success: false, Err: fmt.Errorf("command timed out: gcloud config set project %s", projectID)}
+			}
+
+			// Include the actual command output in the error message
+			errorOutput := strings.TrimSpace(string(output))
+			if errorOutput != "" {
+				return types.OperationResultMsg{Success: false, Err: fmt.Errorf("failed to switch to project %s:\n%s\n\nPlease ensure you have access to this project and that it exists.", projectID, errorOutput)}
+			}
+			return types.OperationResultMsg{Success: false, Err: fmt.Errorf("failed to switch to project %s: %v\n\nPlease ensure you have access to this project and that it exists.", projectID, err)}
 		}
 
 		return types.OperationResultMsg{Success: true}
