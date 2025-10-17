@@ -1,6 +1,7 @@
 .PHONY: build clean run build-all
 
 BINARY_NAME=gcp-switcher
+BINARY_SHORT_NAME=gcps
 BINARY_PATH=bin/$(BINARY_NAME)
 VERSION=1.1.0
 
@@ -43,6 +44,14 @@ build-mac:
 	@GOOS=darwin GOARCH=amd64 go build $(BUILD_FLAGS) -o bin/$(BINARY_NAME)-darwin-amd64
 	@GOOS=darwin GOARCH=arm64 go build $(BUILD_FLAGS) -o bin/$(BINARY_NAME)-darwin-arm64
 	@echo "macOS build complete"
+
+install-mac:
+	@echo "Installing `uname -m` macOS binaries to ~/.local/`whoami`/bin/ ..."
+	@mkdir -p ~/.local/`whoami`/bin/
+	@cp bin/$(BINARY_NAME)-darwin-`uname -m` ~/.local/`whoami`/bin/$(BINARY_NAME)-darwin-`uname -m`
+	@ln -s ~/.local/`whoami`/bin/$(BINARY_NAME)-darwin-`uname -m` ~/.local/bin/$(BINARY_NAME)
+	@ln -s ~/.local/`whoami`/bin/$(BINARY_NAME)-darwin-`uname -m` ~/.local/bin/$(BINARY_SHORT_NAME)
+	@echo "Installation complete. Please ensure ~/.local/bin is in your PATH."
 
 run: build
 	@./$(BINARY_PATH)$(BINARY_EXT)
